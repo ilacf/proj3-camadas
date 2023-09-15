@@ -5,32 +5,34 @@ import numpy as np
 
 #   python -m serial.tools.list_ports
 
-serialName = "COM7"
+serialName = "COM3"
 
 def dps_do_h(pedacos, eop, com1):
     i = 0
     while i < len(pedacos):
-
+        print(f"cheguei: {i}")
         # montando head
-        n = i.to_bytes(1, byteorder='little')
-        print(f"----------------- n: {n} -----------------")
+        n = (i+1).to_bytes(1, byteorder='big')
         tamanho = len(pedacos).to_bytes(1, byteorder='big')
-        print(f"----------------- tamanho: {tamanho} -----------------")
+        len_pl = len(pedacos[i]).to_bytes(1, byteorder='big')
 
-        head = n + tamanho + b'\x00'*10
+        head = n + tamanho + len_pl + b'\xaa'*9
 
-        # montando txBuffer
-        print(f"HEAD = {head}")
-        txBuffer = head + pedacos[i] + eop
-        com1.sendData(np.asarray(txBuffer))
-        time.sleep(1)
+        com1.sendData(np.asarray(head + pedacos[i] + eop))
+        time.sleep(0.1)
          
         comeco = time.time()
         while time.time()-comeco < 5:
             if com1.rx.getIsEmpty() == False:
-                # combinado com o servidor: se nao recebeu o pacote, manda b'\xff', se sim: b'\x00'
-                rxBuffer, _ = com1.getData(12 + 1 + 3)
-                if rxBuffer[12] == b'\x00':
+                print("recebeu direito")
+                # combinado com o servidor: se nao recebeu o pacote, manda b'\xbb', se sim: b'\xcc'
+                head_confirm, _ = com1.getData(12)
+                time.sleep(0.1)
+                pl_confirm, _ = com1.getData(head_confirm[2])
+                time.sleep(0.1)
+                print(pl_confirm)
+                eop_confirm, _ = com1.getData(3)
+                if pl_confirm == b'\xcc' and eop_confirm == eop:
                     i += 1
 
 def main():
@@ -38,31 +40,34 @@ def main():
         print("Iniciou o main")
 
         com1 = enlace(serialName)
+        com1.enable()
+
+        # byte de sacrificio
+        time.sleep(.2)
+        com1.sendData(b'00')
+        time.sleep(0.1)
 
         print("Abriu a comunicação")
 
         # abrindo e fragmentando a imagem
+        pedacos = []
         img = open('img.png', 'rb').read()
-        img = np.frombuffer(img, dtype=np.uint8)
-        pedacos = np.array_split(img, len(img) // 50)
+        x = len(img) / 50
+        for pedaco in range(round(x)):
+            pedacos.append(img[pedaco:pedaco+50])
 
         # Montagem do datagrama de handshake
-        tamanho = len(pedacos).to_bytes(1, byteorder='big', signed=False)
-        head = b'\x00' + tamanho + b'\x00'*10
-        eop = b'\xff\xee\xff'
-        size_head = np.asarray(head).nbytes
-        size_eop = np.asarray(eop).nbytes
-
+        qntd_pacotes = len(pedacos).to_bytes(1, byteorder='big', signed=False)
+        # tamanho do payload:
+        len_pl = (1).to_bytes(1, byteorder="big") # payload do handshake eh 1
+        h_head = b'\x00' + qntd_pacotes + len_pl + b'\xaa'*9
+        print(f"qntd_pacotes = {qntd_pacotes}")
         # Handshake: manda 00, recebe 01 (txBuffer = h_dg)
         h_payload = b'\x00'
-        h_dg = head + h_payload + eop
+        h_eop = b'\xff\xee\xff'
 
-        print(f"DATAGRAMA DO HANDSHAKE = {h_dg}")
-        print(f"meu array de bytes tem tamanho {len(h_dg)}")   
-        
-        com1.sendData(np.asarray(h_dg))
+        com1.sendData(np.asarray(h_head + h_payload + h_eop))
         time.sleep(0.1)
-
         txSize = com1.tx.getStatus()
         print('enviou = {} bytes' .format(txSize))
 
@@ -70,13 +75,17 @@ def main():
         comeco = time.time()
         while time.time()-comeco < 5:
             if com1.rx.getIsEmpty() == False:
-                rxBuffer, _ = com1.getData(size_head + 1 + size_eop) # 16 = 12 + 1 + 3
-                if rxBuffer[12] == b'\x01':
-                    print('*'*100)
+                head_receb, _ = com1.getData(12)
+                time.sleep(0.1)
+                pl_receb, _ = com1.getData(head_receb[2])
+                time.sleep(0.1)
+                eop_receb, _ = com1.getData(3)
+                if pl_receb == b'\x01' and eop_receb == b'\xff\xee\xff':
+                    print('*'*50)
                     print('Handshake completo')
-                    print(f"Servidor devolveu o byte {rxBuffer}")
-                    print('*'*100)
-                    dps_do_h(com1)
+                    print(f"Servidor devolveu o byte {pl_receb}")
+                    print('*'*50)
+                    dps_do_h(pedacos, h_eop, com1)
 
                     print("-------------------------")
                     print("Comunicação encerrada")
@@ -85,7 +94,6 @@ def main():
 
         dnv = input("Servidor inativo. Tentar novamente? S/N \n")
         if dnv == 'S' or dnv == 's':
-            com1.disable()
             main()
         else:
             com1.disable()
