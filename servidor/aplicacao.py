@@ -1,7 +1,6 @@
 from enlace import *
-import enlaceRx
 import time
-import numpy as np
+import base64
 
 serialName = "COM8"
 
@@ -21,9 +20,7 @@ def main():
         
         # handshake
         head_receb_h , _ = com1.getData(12)
-        time.sleep(0.1)
         pl_receb_h, _ = com1.getData(head_receb_h[2])
-        time.sleep(0.1)
         eop_receb_h, _ = com1.getData(3)
 
         if pl_receb_h == b'\x00' and eop_receb_h == eop:
@@ -31,53 +28,56 @@ def main():
             time.sleep(0.1)
         
         recebido = b''
-        pacote_anterior = -1
+        pacote_anterior = 0
         i = 0
-        while i <= head_receb_h[1]:
-            print(F"cheguei: {i}")
-            if com1.rx.getIsEmpty() == False:
-                print("OOOOOOOOOIIIIIIIIIIII")
-                # pegando head do pacote
-                head_receb = com1.getData(12)
-                print(f'HEAD RECEBIDO')
-                print(head_receb)
-                pl_receb, _ = com1.getData(head_receb[0][2])
-                print(f'PAYLOAD RECEBIDO')
-                print(pl_receb)
-                print(pl_receb[0])
-                eop_receb = com1.getData(3)
-                print(f'EOP RECEBIDO: {eop_receb[0]}')
+        while i < head_receb_h[1]:
+            comeco = time.time()
+            mandou = False
+            while time.time()-comeco < 5:
+                if com1.rx.getIsEmpty() == False:
+                    # pegando head do pacote
+                    mandou = True
+                    head_receb, _ = com1.getData(12)
+                    pl_receb, _ = com1.getData(head_receb[2])
+                    eop_receb, _ = com1.getData(3)
 
-                pacote_atual = head_receb[0][0]
-                print(f"pacote atual: {pacote_atual}")
-                qntd_pacotes = head_receb[0][1].to_bytes(1, byteorder='big')
-                n_pacote = i.to_bytes(1, byteorder='little')
-                # pl de confirmacao de recebimento do pacote
-                pl_correto = b'\xcc'
-                pl_errado = b'\xbb'
+                    pacote_atual = head_receb[0]
+                    print(f"pacote atual: {pacote_atual}")
+                    qntd_pacotes = head_receb[1].to_bytes(1, byteorder='big')
+                    n_pacote = i.to_bytes(1, byteorder='big')
+                    # pl de confirmacao de recebimento do pacote
+                    pl_correto = b'\xcc'
+                    pl_errado = b'\xbb'
 
-                # confirmacao de recebimento do pacote
-                if eop_receb[0] == eop and pacote_atual == (pacote_anterior + 1):
-                    print(f'entrei no if pela {i} vez')
-                    pacote_anterior = pacote_atual
-                    i += 1
-                    recebido += pl_receb
-                    # head de confirmacao de recebimento do pacote
-                    head_a = n_pacote + qntd_pacotes + (1).to_bytes(1, byteorder="big") + b'\xaa'*9
-                    print(head_a)
-                    com1.sendData(head_a + pl_correto + eop)
-                    time.sleep(0.1)
-                else:
-                    print(f'entrei no else pela {i} vez')
-                    # avisar cliente que nao recebeu pacote
-                    head_a = n_pacote + qntd_pacotes + (1).to_bytes(1, byteorder="big") + b'\xaa'*9
-                    com1.sendData(head_a + pl_errado + eop)
-                    time.sleep(0.1)
+                    # confirmacao de recebimento do pacote
+                    if eop_receb == eop and pacote_atual == (pacote_anterior + 1):
+                        pacote_anterior = pacote_atual
+                        i += 1
+                        recebido += pl_receb
+                        # head de confirmacao de recebimento do pacote
+                        head_a = n_pacote + qntd_pacotes + (1).to_bytes(1, byteorder="big") + b'\xaa'*9
+                        com1.sendData(head_a + pl_correto + eop)
+                        time.sleep(0.1)
+                    else:
+                        # avisar cliente que nao recebeu pacote
+                        head_a = n_pacote + qntd_pacotes + (1).to_bytes(1, byteorder="big") + b'\xaa'*9
+                        com1.sendData(head_a + pl_errado + eop)
+                        time.sleep(0.1)
+            if mandou == False:
+                print("Cliente parou de mandar pacotes antes da quantidade total. Parar recepção")
+                com1.disable()
+                break
 
-        # combinado com o cliente: quando o servidor terminar de receber tudo, envia um b'\xAA'
-        head_termino = n_pacote + qntd_pacotes + (1).to_bytes(1, byteorder="big") + b'\xaa'*9
-        com1.sendData(head_termino + b'\xAA' + eop)
-        time.sleep(0.1)
+        if i == head_receb_h[1]-1:
+            # combinado com o cliente: quando o servidor terminar de receber tudo, envia um b'\xAA'
+            head_termino = n_pacote + qntd_pacotes + (1).to_bytes(1, byteorder="big") + b'\xaa'*9
+            com1.sendData(head_termino + b'\xAA' + eop)
+            time.sleep(0.1)
+
+            with open('output.png', 'wb') as image_file:
+                image_file.write(recebido)
+
+            print("Imagem recebida salva")
 
         print("-------------------------")
         print("Comunicação encerrada")
