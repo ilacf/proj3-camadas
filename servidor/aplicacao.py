@@ -2,7 +2,7 @@ from enlace import *
 import time
 import base64
 
-serialName = "COM4"
+serialName = "COM6"
 
 def main():
     try:

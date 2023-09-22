@@ -5,12 +5,12 @@ import numpy as np
 
 #   python -m serial.tools.list_ports
 
-serialName = "COM5"
+serialName = "COM3"
 
 def dps_do_h(pedacos, eop, com1):
     i = 0
 
-    # # erro simulado: (quantidade errada de pacotes errado)
+    # erro simulado: (quantidade errada de pacotes errado)
     # while i < 5:
 
     while i < len(pedacos):
