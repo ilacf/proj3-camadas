@@ -5,7 +5,7 @@ import numpy as np
 
 #   python -m serial.tools.list_ports
 
-serialName = "COM3"
+serialName = "COM5"
 
 def dps_do_h(pedacos, eop, com1):
     i = 0

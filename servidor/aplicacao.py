@@ -2,7 +2,7 @@ from enlace import *
 import time
 import base64
 
-serialName = "COM8"
+serialName = "COM4"
 
 def main():
     try:
@@ -20,6 +20,8 @@ def main():
         
         # handshake
         head_receb_h , _ = com1.getData(12)
+
+        
         pl_receb_h, _ = com1.getData(head_receb_h[2])
         eop_receb_h, _ = com1.getData(3)
 
