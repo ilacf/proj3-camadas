@@ -16,9 +16,9 @@ def main():
         time.sleep(1)
 
         h_head = b'\x00\x00' + (1).to_bytes(1, byteorder="big") + b'\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa'
+
         eop = b'\xff\xee\xff'
         
-        # handshake
         head_receb_h , _ = com1.getData(12)
 
         
@@ -35,8 +35,10 @@ def main():
         while i < head_receb_h[1]:
             comeco = time.time()
             mandou = False
+
             while time.time()-comeco < 5:
                 if com1.rx.getIsEmpty() == False:
+
                     # pegando head do pacote
                     mandou = True
                     head_receb, _ = com1.getData(12)
@@ -47,6 +49,7 @@ def main():
                     print(f"pacote atual: {pacote_atual}")
                     qntd_pacotes = head_receb[1].to_bytes(1, byteorder='big')
                     n_pacote = i.to_bytes(1, byteorder='big')
+
                     # pl de confirmacao de recebimento do pacote
                     pl_correto = b'\xcc'
                     pl_errado = b'\xbb'
@@ -56,21 +59,25 @@ def main():
                         pacote_anterior = pacote_atual
                         i += 1
                         recebido += pl_receb
+
                         # head de confirmacao de recebimento do pacote
                         head_a = n_pacote + qntd_pacotes + (1).to_bytes(1, byteorder="big") + b'\xaa'*9
                         com1.sendData(head_a + pl_correto + eop)
                         time.sleep(0.1)
                     else:
+                        
                         # avisar cliente que nao recebeu pacote
                         head_a = n_pacote + qntd_pacotes + (1).to_bytes(1, byteorder="big") + b'\xaa'*9
                         com1.sendData(head_a + pl_errado + eop)
                         time.sleep(0.1)
+
             if mandou == False:
                 print("Cliente parou de mandar pacotes antes da quantidade total. Parar recepção")
                 com1.disable()
                 break
 
-        if i == head_receb_h[1]-1:
+        if i == head_receb_h[1]:
+
             # combinado com o cliente: quando o servidor terminar de receber tudo, envia um b'\xAA'
             head_termino = n_pacote + qntd_pacotes + (1).to_bytes(1, byteorder="big") + b'\xaa'*9
             com1.sendData(head_termino + b'\xAA' + eop)

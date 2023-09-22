@@ -42,6 +42,8 @@ def dps_do_h(pedacos, eop, com1):
                     print("Todos os pacotes foram enviados e recebidos")
                 elif pl_confirm == b'\xbb':
                     print("Servidor avisou que não recebeu próximo pacote corretamente.")
+                    com1.rx.clearBuffer()
+                    i = 0
 
     print("-------------------------")
     print("Comunicação encerrada")
